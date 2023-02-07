@@ -24,6 +24,7 @@ func FilterBundle(fhirData []byte) *fhir.Bundle {
 	for _, e := range bundle.Entry {
 		var dto ResourceTypeDto
 		err = json.Unmarshal(e.Resource, &dto)
+		check(err)
 
 		if *dto.Type == "DiagnosticReport" {
 			report, err = fhir.UnmarshalDiagnosticReport(e.Resource)
