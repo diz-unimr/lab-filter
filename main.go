@@ -45,7 +45,7 @@ func main() {
 					continue
 				}
 
-				<-producer.SendBundle(msg.Key, filtered)
+				<-producer.SendBundle(msg.Key, msg.Timestamp, filtered)
 				commitMessage(consumer, msg)
 
 			} else {

@@ -56,20 +56,20 @@ func NewProducer(config config.Kafka) *LabProducer {
 	}
 }
 
-func (p *LabProducer) SendBundle(key []byte, bundle *fhir.Bundle) (deliveryChan chan kafka.Event) {
+func (p *LabProducer) SendBundle(key []byte, timestamp time.Time, bundle *fhir.Bundle) (deliveryChan chan kafka.Event) {
 	if bundle != nil {
 		byteVal, err := bundle.MarshalJSON()
 		if err != nil {
 			fmt.Println(err)
 			return
 		}
-		return p.Send(key, byteVal)
+		return p.Send(key, timestamp, byteVal)
 	}
 
 	return nil
 }
 
-func (p *LabProducer) Send(key []byte, msg []byte) (deliveryChan chan kafka.Event) {
+func (p *LabProducer) Send(key []byte, timestamp time.Time, msg []byte) (deliveryChan chan kafka.Event) {
 
 	delChan := make(chan kafka.Event, 10000)
 
@@ -77,6 +77,7 @@ func (p *LabProducer) Send(key []byte, msg []byte) (deliveryChan chan kafka.Even
 		err := p.Producer.Produce(&kafka.Message{
 			TopicPartition: kafka.TopicPartition{Topic: &p.Topic, Partition: kafka.PartitionAny},
 			Key:            key,
+			Timestamp:      timestamp,
 			Value:          msg,
 		}, delChan)
 		if err != nil {
@@ -85,7 +86,7 @@ func (p *LabProducer) Send(key []byte, msg []byte) (deliveryChan chan kafka.Even
 				// to be delivered then try again.
 				close(delChan)
 				time.Sleep(time.Second)
-				p.Send(key, msg)
+				p.Send(key, timestamp, msg)
 			}
 		}
 	}()
