@@ -14,48 +14,51 @@ import (
 func main() {
 	appConfig := loadConfig()
 	configureLogger(appConfig.App)
-
-	// create consumer and subscribe to input topics
-	consumer := kafka.Subscribe(appConfig)
-
-	// create producer
-	producer := kafka.NewProducer(appConfig.Kafka)
-
 	// signal handler to break the loop
 	sigchan := make(chan os.Signal, 1)
 	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
-	for {
-		select {
-		case sig := <-sigchan:
-			log.WithField("signal", sig).Info("Caught signal. Gracefully shutting down...")
-			for producer.Producer.Flush(10000) > 0 {
-				log.Debug("Still waiting to flush outstanding messages")
-			}
-			return
+	// create producer
+	producer := kafka.NewProducer(appConfig.Kafka)
 
-		default:
-			msg, err := consumer.ReadMessage(2000)
-			if err != nil && err.(cKafka.Error).Code() == cKafka.ErrTimedOut {
-				continue
-			}
+	go func() {
+		// create consumer and subscribe to input topics
+		consumer := kafka.Subscribe(appConfig)
+		defer consumer.Close()
 
-			go processMessages(consumer, producer, msg, err)
+		for {
+			select {
+			case <-sigchan:
+
+				return
+
+			default:
+				msg, err := consumer.ReadMessage(1000)
+				if err == nil {
+					processMessages(producer, msg, err)
+				}
+			}
 		}
+	}()
+	<-sigchan
+
+	log.WithField("signal", sigchan).Info("Caught signal. Gracefully shutting down...")
+	for producer.Producer.Flush(10000) > 0 {
+		log.Debug("Still waiting to flush outstanding messages")
 	}
+	producer.Producer.Close()
 }
 
-func processMessages(consumer *cKafka.Consumer, producer *kafka.LabProducer, msg *cKafka.Message, err error) {
+func processMessages(producer *kafka.LabProducer, msg *cKafka.Message, err error) {
 	if err == nil {
 		log.WithFields(log.Fields{"key": string(msg.Key), "topic": *msg.TopicPartition.Topic, "offset": msg.TopicPartition.Offset.String()}).Debug("Message received")
 		filtered := fhir.FilterBundle(msg.Value)
 		if filtered == nil {
-			commitMessage(consumer, msg)
+			//commitMessage(consumer, msg)
 			return
 		}
 
-		<-producer.SendBundle(msg.Key, msg.Timestamp, filtered)
-		commitMessage(consumer, msg)
+		producer.SendBundle(msg.Key, msg.Timestamp, filtered)
 
 	} else {
 		// The producer will automatically try to recover from all errors.

@@ -17,7 +17,7 @@ func Subscribe(config config.AppConfig) *kafka.Consumer {
 		"ssl.key.password":         config.Kafka.Ssl.KeyPassword,
 		"broker.address.family":    "v4",
 		"group.id":                 config.App.Name,
-		"enable.auto.commit":       false,
+		"enable.auto.commit":       true,
 		"auto.offset.reset":        "earliest",
 	})
 
