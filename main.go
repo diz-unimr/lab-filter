@@ -28,14 +28,18 @@ func main() {
 	for {
 		select {
 		case sig := <-sigchan:
-			log.WithField("signal", sig).Info("Caught signal. Gracefully terminating...")
+			log.WithField("signal", sig).Info("Caught signal. Gracefully shutting down...")
 			for producer.Producer.Flush(10000) > 0 {
 				log.Debug("Still waiting to flush outstanding messages")
 			}
 			return
 
 		default:
-			msg, err := consumer.ReadMessage(-1)
+			msg, err := consumer.ReadMessage(2000)
+			if err != nil && err.(cKafka.Error).Code() == cKafka.ErrTimedOut {
+				continue
+			}
+
 			go processMessages(consumer, producer, msg, err)
 		}
 	}
