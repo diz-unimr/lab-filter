@@ -66,17 +66,6 @@ func processMessages(producer *kafka.LabProducer, msg *cKafka.Message, err error
 	}
 }
 
-func commitMessage(consumer *cKafka.Consumer, msg *cKafka.Message) {
-	_, err := consumer.CommitMessage(msg)
-	if err != nil {
-		log.WithError(err).Error("Failed to commit offset")
-	}
-	log.WithFields(log.Fields{
-		"offset": msg.TopicPartition.Offset.String(),
-		"topic":  *msg.TopicPartition.Topic}).
-		Debug("Offset committed")
-}
-
 func loadConfig() config.AppConfig {
 	c, err := config.LoadConfig(".")
 	if err != nil {
