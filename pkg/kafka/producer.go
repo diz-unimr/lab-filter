@@ -1,7 +1,6 @@
 package kafka
 
 import (
-	"fmt"
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/samply/golang-fhir-models/fhir-models/fhir"
 	log "github.com/sirupsen/logrus"
@@ -56,40 +55,32 @@ func NewProducer(config config.Kafka) *LabProducer {
 	}
 }
 
-func (p *LabProducer) SendBundle(key []byte, timestamp time.Time, bundle *fhir.Bundle) (deliveryChan chan kafka.Event) {
+func (p *LabProducer) SendBundle(key []byte, timestamp time.Time, bundle *fhir.Bundle) {
 	if bundle != nil {
 		byteVal, err := bundle.MarshalJSON()
 		if err != nil {
-			fmt.Println(err)
+			log.WithError(err).Error("Failed to serialize Bundle to JSON")
 			return
 		}
-		return p.Send(key, timestamp, byteVal)
+		p.Send(key, timestamp, byteVal)
 	}
-
-	return nil
 }
 
-func (p *LabProducer) Send(key []byte, timestamp time.Time, msg []byte) (deliveryChan chan kafka.Event) {
-
-	delChan := make(chan kafka.Event, 10000)
-
+func (p *LabProducer) Send(key []byte, timestamp time.Time, msg []byte) {
 	go func() {
 		err := p.Producer.Produce(&kafka.Message{
 			TopicPartition: kafka.TopicPartition{Topic: &p.Topic, Partition: kafka.PartitionAny},
 			Key:            key,
 			Timestamp:      timestamp,
 			Value:          msg,
-		}, delChan)
+		}, nil)
 		if err != nil {
 			if err.(kafka.Error).Code() == kafka.ErrQueueFull {
 				// Producer queue is full, wait 1s for messages
 				// to be delivered then try again.
-				close(delChan)
 				time.Sleep(time.Second)
 				p.Send(key, timestamp, msg)
 			}
 		}
 	}()
-
-	return delChan
 }
