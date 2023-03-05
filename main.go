@@ -18,8 +18,8 @@ func main() {
 	configureLogger(appConfig.App)
 
 	// signal handler to break the loop
-	sigchan := make(chan os.Signal)
-	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM, syscall.SIGKILL)
+	sigchan := make(chan os.Signal, 1)
+	signal.Notify(sigchan, syscall.SIGINT, syscall.SIGTERM)
 
 	// create producer
 	producer := kafka.NewProducer(appConfig.Kafka)
@@ -88,29 +88,27 @@ func createListener(sigchan chan os.Signal, c *kafka.LabConsumer, msg *cKafka.Me
 	go func(msg *cKafka.Message) {
 		defer close(listener)
 
-		select {
-		case e := <-listener:
-			switch ev := e.(type) {
-			case nil:
-				return
-			case *cKafka.Error:
-				log.WithError(ev).
-					Error("Processing failed")
+		e := <-listener
+		switch ev := e.(type) {
+		case nil:
+			return
+		case *cKafka.Error:
+			log.WithError(ev).
+				Error("Processing failed")
+			sigchan <- syscall.SIGINT
+		case *cKafka.Message:
+			if ev.TopicPartition.Error != nil {
+				log.WithError(ev.TopicPartition.Error).
+					Error("Delivery failed")
 				sigchan <- syscall.SIGINT
-			case *cKafka.Message:
-				if ev.TopicPartition.Error != nil {
-					log.WithError(ev.TopicPartition.Error).
-						Error("Delivery failed")
-					sigchan <- syscall.SIGINT
-				} else {
-					log.WithFields(log.Fields{
-						"key":    string(ev.Key),
-						"offset": ev.TopicPartition.Offset,
-						"topic":  *ev.TopicPartition.Topic,
-					}).
-						Debug("Delivered message")
-					c.StoreOffset(msg)
-				}
+			} else {
+				log.WithFields(log.Fields{
+					"key":    string(ev.Key),
+					"offset": ev.TopicPartition.Offset,
+					"topic":  *ev.TopicPartition.Topic,
+				}).
+					Debug("Delivered message")
+				c.StoreOffset(msg)
 			}
 		}
 	}(msg)
