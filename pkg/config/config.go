@@ -21,6 +21,7 @@ type Kafka struct {
 	OutputTopic      string `mapstructure:"output-topic"`
 	SecurityProtocol string `mapstructure:"security-protocol"`
 	Ssl              Ssl    `mapstructure:"ssl"`
+	NumConsumers     int    `mapstructure:"num-consumers"`
 }
 
 type Ssl struct {

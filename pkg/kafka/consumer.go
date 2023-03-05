@@ -1,13 +1,20 @@
 package kafka
 
 import (
-	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/confluentinc/confluent-kafka-go/v2/kafka"
 	log "github.com/sirupsen/logrus"
 	"lab-filter/pkg/config"
 	"os"
 )
 
-func Subscribe(config config.AppConfig) *kafka.Consumer {
+type LabConsumer struct {
+	Consumer *kafka.Consumer
+	Topic    string
+	ClientId string
+	IsClosed bool
+}
+
+func NewConsumer(config config.AppConfig, clientId string) *LabConsumer {
 	c, err := kafka.NewConsumer(&kafka.ConfigMap{
 		"bootstrap.servers":        config.Kafka.BootstrapServers,
 		"security.protocol":        config.Kafka.SecurityProtocol,
@@ -17,7 +24,10 @@ func Subscribe(config config.AppConfig) *kafka.Consumer {
 		"ssl.key.password":         config.Kafka.Ssl.KeyPassword,
 		"broker.address.family":    "v4",
 		"group.id":                 config.App.Name,
+		"client.id":                clientId,
 		"enable.auto.commit":       true,
+		"enable.auto.offset.store": false,
+		"auto.commit.interval.ms":  5000,
 		"auto.offset.reset":        "earliest",
 	})
 
@@ -28,7 +38,46 @@ func Subscribe(config config.AppConfig) *kafka.Consumer {
 	err = c.SubscribeTopics([]string{config.Kafka.InputTopic}, nil)
 	check(err)
 
-	return c
+	return &LabConsumer{
+		Consumer: c,
+		Topic:    config.Kafka.InputTopic,
+		ClientId: clientId,
+	}
+}
+
+func (c *LabConsumer) Close() {
+	err := c.Consumer.Close()
+	if err != nil {
+		log.Error("Failed to close consumer properly")
+	}
+	c.IsClosed = true
+}
+
+func (c *LabConsumer) Unsubscribe() {
+	err := c.Consumer.Unsubscribe()
+	if err != nil {
+		log.Error("Failed to unsubscribe consumer from the current subscription")
+	}
+}
+
+func (c *LabConsumer) StoreOffset(msg *kafka.Message) {
+	if c.IsClosed {
+		return
+	}
+	_, err := c.Consumer.StoreMessage(msg)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"key":    string(msg.Key),
+			"topic":  *msg.TopicPartition.Topic,
+			"offset": msg.TopicPartition.Offset.String()}).
+			Warn("Failed to commit offset for message")
+	} else {
+		log.WithFields(log.Fields{
+			"key":    string(msg.Key),
+			"topic":  *msg.TopicPartition.Topic,
+			"offset": msg.TopicPartition.Offset.String()}).
+			Trace("Offset for message committed")
+	}
 }
 
 func check(err error) {

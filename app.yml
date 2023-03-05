@@ -12,3 +12,4 @@ kafka:
     key-password: private-key-password
   input-topic:
   output-topic:
+  num-consumers: 3
