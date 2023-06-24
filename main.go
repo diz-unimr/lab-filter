@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -48,7 +49,7 @@ func main() {
 					return
 
 				default:
-					msg, err := c.Consumer.ReadMessage(1000)
+					msg, err := c.Consumer.ReadMessage(1 * time.Second)
 					if err == nil {
 						log.WithFields(log.Fields{
 							"client-id": clientId,
