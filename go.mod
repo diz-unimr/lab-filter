@@ -5,7 +5,7 @@ go 1.19
 require (
 	github.com/confluentinc/confluent-kafka-go/v2 v2.0.2
 	github.com/samply/golang-fhir-models/fhir-models v0.3.2
-	github.com/sirupsen/logrus v1.9.0
+	github.com/sirupsen/logrus v1.9.1
 	github.com/spf13/viper v1.14.0
 	golang.org/x/exp v0.0.0-20230206171751-46f607a40771
 )
