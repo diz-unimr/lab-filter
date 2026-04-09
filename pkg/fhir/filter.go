@@ -2,10 +2,11 @@ package fhir
 
 import (
 	"encoding/json"
+	"os"
+
 	"github.com/samply/golang-fhir-models/fhir-models/fhir"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
-	"os"
 )
 
 type ResourceTypeDto struct {
@@ -35,7 +36,7 @@ func FilterBundle(fhirData []byte) *fhir.Bundle {
 			obs, err := fhir.UnmarshalObservation(e.Resource)
 			check(err)
 
-			if obs.ValueString != nil {
+			if !(obs.ValueQuantity != nil || obs.ValueCodeableConcept != nil || obs.ValueRange != nil || obs.ValueRatio != nil) {
 				remove = append(remove, "Observation/"+*obs.Id)
 				continue
 			}
