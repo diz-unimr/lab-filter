@@ -13,3 +13,9 @@ kafka:
   input-topic:
   output-topic:
   num-consumers: 3
+
+fhir:
+  profiles:
+    service-request:
+    diagnostic-report:
+    observation:
