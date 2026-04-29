@@ -1,8 +1,6 @@
 package main
 
 import (
-	cKafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
-	log "github.com/sirupsen/logrus"
 	"lab-filter/pkg/config"
 	"lab-filter/pkg/fhir"
 	"lab-filter/pkg/kafka"
@@ -12,6 +10,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	cKafka "github.com/confluentinc/confluent-kafka-go/v2/kafka"
+	log "github.com/sirupsen/logrus"
 )
 
 func main() {
@@ -24,6 +25,10 @@ func main() {
 
 	// create producer
 	producer := kafka.NewProducer(appConfig.Kafka)
+
+	// create filter
+	filter := fhir.NewLabFilter(appConfig.Fhir)
+
 	var wg sync.WaitGroup
 
 	for i := 1; i <= appConfig.Kafka.NumConsumers; i++ {
@@ -59,7 +64,7 @@ func main() {
 							Debug("Message received")
 
 						deliveryChan := createListener(sigchan, c, msg)
-						processMessages(producer, msg, deliveryChan, sigchan)
+						processMessages(producer, filter, msg, deliveryChan, sigchan)
 
 					} else {
 						if err.(cKafka.Error).Code() != cKafka.ErrTimedOut {
@@ -117,10 +122,9 @@ func createListener(sigchan chan os.Signal, c *kafka.LabConsumer, msg *cKafka.Me
 	return listener
 }
 
-func processMessages(producer *kafka.LabProducer, msg *cKafka.Message,
-	deliveryChan chan cKafka.Event, sigchan chan os.Signal) {
+func processMessages(producer *kafka.LabProducer, filter *fhir.LabFilter, msg *cKafka.Message, deliveryChan chan cKafka.Event, sigchan chan os.Signal) {
 
-	filtered := fhir.FilterBundle(msg.Value)
+	filtered := filter.FilterBundle(msg.Value)
 	if filtered == nil {
 
 		deliveryChan <- nil

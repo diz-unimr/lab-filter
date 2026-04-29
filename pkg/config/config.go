@@ -1,18 +1,30 @@
 package config
 
 import (
-	"github.com/spf13/viper"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type AppConfig struct {
 	App   App   `mapstructure:"app"`
 	Kafka Kafka `mapstructure:"kafka"`
+	Fhir  Fhir  `mapstructure:"fhir"`
 }
 
 type App struct {
 	Name     string `mapstructure:"name"`
 	LogLevel string `mapstructure:"log-level"`
+}
+
+type Fhir struct {
+	Profiles Profiles `mapstructure:"profiles"`
+}
+
+type Profiles struct {
+	ServiceRequest   *string `mapstructure:"service-request"`
+	DiagnosticReport *string `mapstructure:"diagnostic-report"`
+	Observation      *string `mapstructure:"observation"`
 }
 
 type Kafka struct {

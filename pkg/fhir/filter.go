@@ -2,6 +2,7 @@ package fhir
 
 import (
 	"encoding/json"
+	"lab-filter/pkg/config"
 	"os"
 
 	"github.com/samply/golang-fhir-models/fhir-models/fhir"
@@ -9,17 +10,26 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+type LabFilter struct {
+	Config config.Fhir
+}
+
 type ResourceTypeDto struct {
 	Type *string `bson:"resourceType" json:"resourceType"`
 }
 
-func FilterBundle(fhirData []byte) *fhir.Bundle {
+func NewLabFilter(config config.Fhir) *LabFilter {
+	return &LabFilter{Config: config}
+}
+
+func (f *LabFilter) FilterBundle(fhirData []byte) *fhir.Bundle {
 	bundle, err := fhir.UnmarshalBundle(fhirData)
 	check(err)
 
 	var remove []string
 	var valid []fhir.BundleEntry
 
+	var reportEntry fhir.BundleEntry
 	var report fhir.DiagnosticReport
 
 	for _, e := range bundle.Entry {
@@ -27,19 +37,48 @@ func FilterBundle(fhirData []byte) *fhir.Bundle {
 		err = json.Unmarshal(e.Resource, &dto)
 		check(err)
 
-		if *dto.Type == "DiagnosticReport" {
+		switch *dto.Type {
+		case "ServiceRequest":
+			if f.Config.Profiles.ServiceRequest != nil {
+				request, err := fhir.UnmarshalServiceRequest(e.Resource)
+				check(err)
+
+				// set profile
+				request.Meta = setProfile(request.Meta, f.Config.Profiles.ServiceRequest)
+
+				// marshall back
+				r, err := request.MarshalJSON()
+				check(err)
+				e.Resource = r
+			}
+
+		case "DiagnosticReport":
+			reportEntry = e
 			report, err = fhir.UnmarshalDiagnosticReport(e.Resource)
 			check(err)
-		}
 
-		if *dto.Type == "Observation" {
+			// set profile
+			report.Meta = setProfile(report.Meta, f.Config.Profiles.DiagnosticReport)
+
+			// report will be marshaled back later
+			continue
+
+		case "Observation":
 			obs, err := fhir.UnmarshalObservation(e.Resource)
 			check(err)
+
+			// set profile
+			obs.Meta = setProfile(obs.Meta, f.Config.Profiles.Observation)
 
 			if !(obs.ValueQuantity != nil || obs.ValueCodeableConcept != nil || obs.ValueRange != nil || obs.ValueRatio != nil) {
 				remove = append(remove, "Observation/"+*obs.Id)
 				continue
 			}
+
+			// marshall back
+			r, err := obs.MarshalJSON()
+			check(err)
+			e.Resource = r
 		}
 
 		valid = append(valid, e)
@@ -53,17 +92,38 @@ func FilterBundle(fhirData []byte) *fhir.Bundle {
 			}
 		}
 
-		// return err when bundle contains no observations
+		// return nil when bundle contains no observations
 		if len(validResults) == 0 {
-			log.Warning("no observations left after filter")
+			log.Warning("No observations left after filter")
 			return nil
 		}
+
 		report.Result = validResults
 	}
-	bundle.Entry = valid
+
+	// unmarshal report
+	r, err := report.MarshalJSON()
+	check(err)
+	reportEntry.Resource = r
+
+	bundle.Entry = append(valid, reportEntry)
 
 	return &bundle
 
+}
+
+func setProfile(meta *fhir.Meta, profile *string) *fhir.Meta {
+	if profile == nil {
+		return nil
+	}
+	if meta == nil {
+		return &fhir.Meta{
+			Profile: []string{*profile},
+		}
+	}
+
+	meta.Profile = []string{*profile}
+	return meta
 }
 
 func check(err error) {
