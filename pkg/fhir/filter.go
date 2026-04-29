@@ -70,7 +70,7 @@ func (f *LabFilter) FilterBundle(fhirData []byte) *fhir.Bundle {
 			// set profile
 			obs.Meta = setProfile(obs.Meta, f.Config.Profiles.Observation)
 
-			if !(obs.ValueQuantity != nil || obs.ValueCodeableConcept != nil || obs.ValueRange != nil || obs.ValueRatio != nil) {
+			if obs.ValueQuantity == nil && obs.ValueCodeableConcept == nil && obs.ValueRange == nil && obs.ValueRatio == nil {
 				remove = append(remove, "Observation/"+*obs.Id)
 				continue
 			}
